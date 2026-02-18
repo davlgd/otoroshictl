@@ -204,13 +204,84 @@ impl Service<Request<Body>> for ProxySvc {
                 }
             };
 
+            // Process Consumer Info JWT if configured
+            let consumer_info_decoded: Option<String> =
+                if let Some(ci_config) = &config.consumer_info {
+                    let token_opt = req
+                        .headers()
+                        .get(&ci_config.in_header)
+                        .and_then(|v| v.to_str().ok())
+                        .map(|s| s.to_string());
+
+                    match token_opt {
+                        None => {
+                            if ci_config.strict {
+                                return Ok(json_error_response(
+                                    http::StatusCode::UNAUTHORIZED,
+                                    "Missing Consumer Info header",
+                                    None,
+                                ));
+                            }
+                            None
+                        }
+                        Some(token) => match ci_config.verifier.verify_and_decode(&token) {
+                            Ok(claims) => match serde_json::to_string(&claims) {
+                                Ok(json) => Some(json),
+                                Err(e) => {
+                                    warn!("Failed to serialize Consumer Info claims: {}", e);
+                                    None
+                                }
+                            },
+                            Err(e) => {
+                                if ci_config.strict {
+                                    return Ok(json_error_response(
+                                        http::StatusCode::UNAUTHORIZED,
+                                        "Invalid Consumer Info token",
+                                        None,
+                                    ));
+                                }
+                                warn!("Consumer Info token verification failed: {}", e);
+                                None
+                            }
+                        },
+                    }
+                } else {
+                    None
+                };
+
             // Build the backend request, filtering hop-by-hop headers
             let (parts, body) = req.into_parts();
             let mut backend_req_builder = Request::builder().method(parts.method).uri(parts.uri);
 
             for (name, value) in parts.headers.iter() {
-                if !is_hop_by_hop_header(name) {
-                    backend_req_builder = backend_req_builder.header(name, value);
+                if is_hop_by_hop_header(name) {
+                    continue;
+                }
+                // If consumer info is active, in_header == out_header, and we have decoded JSON,
+                // skip the original JWT header — it will be replaced by the decoded JSON below.
+                if let Some(ci_config) = &config.consumer_info {
+                    if ci_config.in_header == ci_config.out_header
+                        && consumer_info_decoded.is_some()
+                        && name == ci_config.in_header
+                    {
+                        continue;
+                    }
+                }
+                backend_req_builder = backend_req_builder.header(name, value);
+            }
+
+            // Add the decoded Consumer Info JSON as a header if available
+            if let Some(ci_config) = &config.consumer_info {
+                if let Some(ref json) = consumer_info_decoded {
+                    match json.parse::<http::header::HeaderValue>() {
+                        Ok(header_value) => {
+                            backend_req_builder = backend_req_builder
+                                .header(ci_config.out_header.clone(), header_value);
+                        }
+                        Err(e) => {
+                            warn!("Failed to set Consumer Info output header: {}", e);
+                        }
+                    }
                 }
             }
 
@@ -308,6 +379,14 @@ pub async fn run(
     response_secret_base64: bool,
     response_alg: Option<String>,
     use_v1: bool,
+    consumer_info_enabled: bool,
+    consumer_info_header: String,
+    consumer_info_out_header: Option<String>,
+    consumer_info_alg: String,
+    consumer_info_secret: Option<String>,
+    consumer_info_secret_base64: bool,
+    consumer_info_public_key: Option<String>,
+    consumer_info_strict: bool,
 ) {
     // Validate that secret or public_key is provided for V2
     if !use_v1 && secret.is_none() && public_key.is_none() {
@@ -333,6 +412,14 @@ pub async fn run(
         response_secret_base64,
         response_alg,
         use_v1,
+        consumer_info_enabled,
+        consumer_info_header,
+        consumer_info_out_header,
+        consumer_info_alg,
+        consumer_info_secret,
+        consumer_info_secret_base64,
+        consumer_info_public_key,
+        consumer_info_strict,
     ) {
         Ok(config) => Arc::new(config),
         Err(e) => {

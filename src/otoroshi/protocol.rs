@@ -278,6 +278,52 @@ impl OtoroshiProtocol {
     }
 }
 
+/// Verifier for the Otoroshi Consumer Info JWT.
+///
+/// The Consumer Info plugin injects a JWT into the `Otoroshi-Claims` header
+/// containing consumer details (apikey, user, profile, etc.).
+#[derive(Debug, Clone)]
+pub struct ConsumerInfoVerifier {
+    algorithm: Algorithm,
+    secret: Vec<u8>,
+}
+
+impl ConsumerInfoVerifier {
+    /// Create a new verifier with the given algorithm and secret/public key bytes.
+    pub fn new(algorithm: Algorithm, secret: &[u8]) -> Self {
+        Self {
+            algorithm,
+            secret: secret.to_vec(),
+        }
+    }
+
+    fn decoding_key(&self) -> Result<DecodingKey, ProtocolError> {
+        match self.algorithm {
+            Algorithm::HS256 | Algorithm::HS384 | Algorithm::HS512 => {
+                Ok(DecodingKey::from_secret(&self.secret))
+            }
+            Algorithm::RS256 | Algorithm::RS384 | Algorithm::RS512 => {
+                DecodingKey::from_rsa_pem(&self.secret).map_err(ProtocolError::from)
+            }
+            Algorithm::ES256 | Algorithm::ES384 => {
+                DecodingKey::from_ec_pem(&self.secret).map_err(ProtocolError::from)
+            }
+        }
+    }
+
+    /// Verify and decode a Consumer Info JWT, returning the full payload as a JSON value.
+    pub fn verify_and_decode(&self, token: &str) -> Result<serde_json::Value, ProtocolError> {
+        let mut validation = Validation::new(self.algorithm.as_jsonwebtoken());
+        validation.set_required_spec_claims::<&str>(&[]);
+        validation.validate_aud = false;
+        validation.leeway = 10;
+
+        let decoding_key = self.decoding_key()?;
+        let token_data = decode::<serde_json::Value>(token, &decoding_key, &validation)?;
+        Ok(token_data.claims)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

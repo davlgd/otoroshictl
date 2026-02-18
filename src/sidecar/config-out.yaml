@@ -66,18 +66,18 @@ spec:
       header_out_name: xxxx
   outbounds:
     port: 15001
-    sidecar-outbound.otoroshi.mesh:
-      hostname: sidecar-outbound.otoroshi.mesh
-      path: /api/.*
+    service-b.otoroshi.mesh:
+      hostname: service-b.otoroshi.mesh
+      path: /.*
       apikey:
         enabled: true
         apikey_id: apki_dev_ZOHqpXD1hGUoBXXB
       mtls:
         enabled: true
         client_cert_id: otoroshi-client
-    service-b.otoroshi.mesh:
-      hostname: service-b.otoroshi.mesh
-      path: /.*
+    sidecar-outbound.otoroshi.mesh:
+      hostname: sidecar-outbound.otoroshi.mesh
+      path: /api/.*
       apikey:
         enabled: true
         apikey_id: apki_dev_ZOHqpXD1hGUoBXXB

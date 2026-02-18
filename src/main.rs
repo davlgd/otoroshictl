@@ -241,6 +241,14 @@ async fn main() {
                 response_secret_base64,
                 response_alg,
                 v1,
+                consumer_info,
+                consumer_info_header,
+                consumer_info_out_header,
+                consumer_info_alg,
+                consumer_info_secret,
+                consumer_info_secret_base64,
+                consumer_info_public_key,
+                consumer_info_permissive,
             } => {
                 crate::challenge::server::run(
                     *port,
@@ -258,6 +266,14 @@ async fn main() {
                     *response_secret_base64,
                     response_alg.clone(),
                     *v1,
+                    *consumer_info,
+                    consumer_info_header.clone(),
+                    consumer_info_out_header.clone(),
+                    consumer_info_alg.clone(),
+                    consumer_info_secret.clone(),
+                    *consumer_info_secret_base64,
+                    consumer_info_public_key.clone(),
+                    !consumer_info_permissive,
                 )
                 .await;
             }

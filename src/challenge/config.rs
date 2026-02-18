@@ -7,7 +7,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use crate::challenge::error::ConfigError;
-use crate::otoroshi::protocol::Algorithm;
+use crate::otoroshi::protocol::{Algorithm, ConsumerInfoVerifier};
 
 // Re-export shared constants from protocol module
 pub use crate::otoroshi::protocol::{
@@ -38,6 +38,19 @@ pub enum ProtocolVersion {
     V2,
 }
 
+/// Configuration for decoding Otoroshi Consumer Info JWTs.
+#[derive(Debug, Clone)]
+pub struct ConsumerInfoConfig {
+    /// Header name to read the Consumer Info JWT from.
+    pub in_header: HeaderName,
+    /// Header name to write the decoded JSON into.
+    pub out_header: HeaderName,
+    /// JWT verifier for the Consumer Info token.
+    pub verifier: ConsumerInfoVerifier,
+    /// If true, reject requests where the Consumer Info header is absent or invalid.
+    pub strict: bool,
+}
+
 /// Proxy configuration built from CLI arguments.
 #[derive(Debug, Clone)]
 pub struct ProxyConfig {
@@ -66,6 +79,8 @@ pub struct ProxyConfig {
     pub token_ttl: i64,
     /// Protocol version (V1 or V2).
     pub version: ProtocolVersion,
+    /// Optional Consumer Info JWT processing configuration.
+    pub consumer_info: Option<ConsumerInfoConfig>,
 }
 
 /// Read a PEM value: if it points to an existing file, read the file; otherwise use as-is.
@@ -171,6 +186,14 @@ impl ProxyConfig {
         response_secret_base64: bool,
         response_alg: Option<String>,
         use_v1: bool,
+        consumer_info_enabled: bool,
+        consumer_info_header: String,
+        consumer_info_out_header: Option<String>,
+        consumer_info_alg: String,
+        consumer_info_secret: Option<String>,
+        consumer_info_secret_base64: bool,
+        consumer_info_public_key: Option<String>,
+        consumer_info_strict: bool,
     ) -> Result<Self, ConfigError> {
         let state_header = HeaderName::from_bytes(state_header.as_bytes()).map_err(|e| {
             ConfigError::InvalidHeader {
@@ -263,6 +286,52 @@ impl ProxyConfig {
             None => None, // Will use secret_bytes as fallback in server.rs
         };
 
+        // Build the consumer info configuration if enabled
+        let consumer_info =
+            if consumer_info_enabled {
+                let ci_algorithm: Algorithm = consumer_info_alg.parse().unwrap_or_default();
+
+                let ci_secret_bytes = if ci_algorithm.is_asymmetric() {
+                    match (&consumer_info_public_key, &consumer_info_secret) {
+                        (Some(pk), _) => resolve_pem(pk)?,
+                        (None, Some(s)) => {
+                            let pem = resolve_pem(s)?;
+                            extract_public_key(ci_algorithm, &pem)?
+                        }
+                        (None, None) => return Err(ConfigError::MissingConsumerInfoKey),
+                    }
+                } else {
+                    match &consumer_info_secret {
+                        Some(s) => resolve_secret(s, consumer_info_secret_base64)?,
+                        None => return Err(ConfigError::MissingConsumerInfoKey),
+                    }
+                };
+
+                let ci_in_header = HeaderName::from_bytes(consumer_info_header.as_bytes())
+                    .map_err(|e| ConfigError::InvalidHeader {
+                        name: "consumer_info_header",
+                        source: e,
+                    })?;
+
+                let ci_out_header_str = consumer_info_out_header.unwrap_or(consumer_info_header);
+                let ci_out_header =
+                    HeaderName::from_bytes(ci_out_header_str.as_bytes()).map_err(|e| {
+                        ConfigError::InvalidHeader {
+                            name: "consumer_info_out_header",
+                            source: e,
+                        }
+                    })?;
+
+                Some(ConsumerInfoConfig {
+                    in_header: ci_in_header,
+                    out_header: ci_out_header,
+                    verifier: ConsumerInfoVerifier::new(ci_algorithm, &ci_secret_bytes),
+                    strict: consumer_info_strict,
+                })
+            } else {
+                None
+            };
+
         Ok(ProxyConfig {
             listen_addr: SocketAddr::from(([0, 0, 0, 0], port)),
             backend_url: format!("http://{}:{}", backend_host, backend_port),
@@ -276,6 +345,7 @@ impl ProxyConfig {
             request_timeout: Duration::from_secs(timeout_secs),
             token_ttl,
             version,
+            consumer_info,
         })
     }
 }
@@ -298,6 +368,14 @@ mod tests {
             DEFAULT_TOKEN_TTL_SECS,
             "HS512".to_string(),
             None,
+            None,
+            false,
+            None,
+            false,
+            false,
+            "Otoroshi-Claims".to_string(),
+            None,
+            "HS512".to_string(),
             None,
             false,
             None,
@@ -336,6 +414,14 @@ mod tests {
             false,
             None,
             true,
+            false,
+            "Otoroshi-Claims".to_string(),
+            None,
+            "HS512".to_string(),
+            None,
+            false,
+            None,
+            false,
         );
 
         assert!(config.is_ok());
@@ -358,6 +444,14 @@ mod tests {
             45,
             "HS256".to_string(),
             None,
+            None,
+            false,
+            None,
+            false,
+            false,
+            "Otoroshi-Claims".to_string(),
+            None,
+            "HS512".to_string(),
             None,
             false,
             None,
@@ -392,6 +486,14 @@ mod tests {
             false,
             None,
             false,
+            false,
+            "Otoroshi-Claims".to_string(),
+            None,
+            "HS512".to_string(),
+            None,
+            false,
+            None,
+            false,
         );
 
         assert!(config.is_ok());
@@ -416,6 +518,14 @@ mod tests {
             Some("sign-secret".to_string()),
             false,
             Some("HS256".to_string()),
+            false,
+            false,
+            "Otoroshi-Claims".to_string(),
+            None,
+            "HS512".to_string(),
+            None,
+            false,
+            None,
             false,
         );
 
@@ -445,6 +555,14 @@ mod tests {
             false,
             None,
             false,
+            false,
+            "Otoroshi-Claims".to_string(),
+            None,
+            "HS512".to_string(),
+            None,
+            false,
+            None,
+            false,
         );
 
         assert!(config.is_err());
@@ -464,6 +582,14 @@ mod tests {
             30,
             "HS512".to_string(),
             None,
+            None,
+            false,
+            None,
+            false,
+            false,
+            "Otoroshi-Claims".to_string(),
+            None,
+            "HS512".to_string(),
             None,
             false,
             None,
@@ -495,6 +621,14 @@ mod tests {
             false,
             None,
             false,
+            false,
+            "Otoroshi-Claims".to_string(),
+            None,
+            "HS512".to_string(),
+            None,
+            false,
+            None,
+            false,
         );
 
         assert!(config.is_err());
@@ -518,6 +652,14 @@ mod tests {
             -10, // TTL = -10
             "HS512".to_string(),
             None,
+            None,
+            false,
+            None,
+            false,
+            false,
+            "Otoroshi-Claims".to_string(),
+            None,
+            "HS512".to_string(),
             None,
             false,
             None,
@@ -549,6 +691,14 @@ mod tests {
             false,
             None,
             false,
+            false,
+            "Otoroshi-Claims".to_string(),
+            None,
+            "HS512".to_string(),
+            None,
+            false,
+            None,
+            false,
         );
 
         assert!(config.is_err());
@@ -572,6 +722,14 @@ mod tests {
             30,
             "HS512".to_string(),
             None,
+            None,
+            false,
+            None,
+            false,
+            false,
+            "Otoroshi-Claims".to_string(),
+            None,
+            "HS512".to_string(),
             None,
             false,
             None,
@@ -603,6 +761,14 @@ mod tests {
             false,
             None,
             false,
+            false,
+            "Otoroshi-Claims".to_string(),
+            None,
+            "HS512".to_string(),
+            None,
+            false,
+            None,
+            false,
         );
 
         assert!(config.is_err());
@@ -623,6 +789,14 @@ mod tests {
             30,
             "HS512".to_string(),
             None,
+            None,
+            false,
+            None,
+            false,
+            false,
+            "Otoroshi-Claims".to_string(),
+            None,
+            "HS512".to_string(),
             None,
             false,
             None,

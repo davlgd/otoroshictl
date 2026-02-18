@@ -498,6 +498,34 @@ pub enum ChallengeSubCommand {
         /// Use V1 protocol (simple echo) instead of V2 (JWT challenge)
         #[arg(long, action = clap::ArgAction::SetTrue, env = "OTOROSHI_CHALLENGE_FORCE_V1")]
         v1: bool,
+        /// Enable Consumer Info JWT processing
+        #[arg(long, action = clap::ArgAction::SetTrue, env = "OTOROSHI_CONSUMER_INFO_ENABLED")]
+        consumer_info: bool,
+        /// Header name containing the Consumer Info JWT (default: Otoroshi-Claims)
+        #[arg(
+            long,
+            default_value = "Otoroshi-Claims",
+            env = "OTOROSHI_CONSUMER_INFO_HEADER"
+        )]
+        consumer_info_header: String,
+        /// Header name for the decoded Consumer Info JSON output (default: same as --consumer-info-header)
+        #[arg(long, env = "OTOROSHI_CONSUMER_INFO_OUT_HEADER")]
+        consumer_info_out_header: Option<String>,
+        /// Algorithm for Consumer Info JWT verification (HS256, HS384, HS512, RS256, RS384, RS512, ES256, ES384)
+        #[arg(long, default_value = "HS512", env = "OTOROSHI_CONSUMER_INFO_ALG")]
+        consumer_info_alg: String,
+        /// Secret or public key PEM for Consumer Info JWT verification
+        #[arg(long, env = "OTOROSHI_CONSUMER_INFO_SECRET")]
+        consumer_info_secret: Option<String>,
+        /// Interpret the consumer info secret as base64-encoded
+        #[arg(long, action = clap::ArgAction::SetTrue, env = "OTOROSHI_CONSUMER_INFO_SECRET_BASE64")]
+        consumer_info_secret_base64: bool,
+        /// Public key PEM for asymmetric Consumer Info JWT verification
+        #[arg(long, env = "OTOROSHI_CONSUMER_INFO_PUBLIC_KEY")]
+        consumer_info_public_key: Option<String>,
+        /// Allow requests through even if the Consumer Info header is absent or invalid
+        #[arg(long, action = clap::ArgAction::SetTrue, env = "OTOROSHI_CONSUMER_INFO_PERMISSIVE")]
+        consumer_info_permissive: bool,
     },
 }
 

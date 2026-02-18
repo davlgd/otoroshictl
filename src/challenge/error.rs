@@ -42,4 +42,8 @@ pub enum ConfigError {
     /// Failed to extract the public key from the private key.
     #[error("Failed to extract public key: {0}")]
     PublicKeyExtraction(String),
+
+    /// Consumer info is enabled but no secret or public key was provided.
+    #[error("Consumer info enabled but no secret or public key provided")]
+    MissingConsumerInfoKey,
 }
