@@ -237,6 +237,9 @@ async fn main() {
                 token_ttl,
                 alg,
                 public_key,
+                response_secret,
+                response_secret_base64,
+                response_alg,
                 v1,
             } => {
                 crate::challenge::server::run(
@@ -251,6 +254,9 @@ async fn main() {
                     *token_ttl,
                     alg.clone(),
                     public_key.clone(),
+                    response_secret.clone(),
+                    *response_secret_base64,
+                    response_alg.clone(),
                     *v1,
                 )
                 .await;

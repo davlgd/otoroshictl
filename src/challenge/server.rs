@@ -122,35 +122,66 @@ impl Service<Request<Body>> for ProxySvc {
                 }
                 ProtocolVersion::V2 => {
                     // V2: JWT challenge/response
-                    let secret = match &config.secret {
-                        Some(s) => s,
-                        None => {
-                            return Ok(json_error_response(
-                                http::StatusCode::INTERNAL_SERVER_ERROR,
-                                "Secret is required for V2 protocol",
-                                None,
-                            ));
+                    // Determine the verification key (public key for asymmetric, secret for HMAC)
+                    let verify_key = if config.algorithm.is_asymmetric() {
+                        match &config.public_key {
+                            Some(pk) => pk.as_slice(),
+                            None => {
+                                return Ok(json_error_response(
+                                    http::StatusCode::INTERNAL_SERVER_ERROR,
+                                    "Public key is required for asymmetric V2 protocol verification",
+                                    None,
+                                ));
+                            }
+                        }
+                    } else {
+                        match &config.secret {
+                            Some(s) => s.as_slice(),
+                            None => {
+                                return Ok(json_error_response(
+                                    http::StatusCode::INTERNAL_SERVER_ERROR,
+                                    "Secret is required for V2 protocol",
+                                    None,
+                                ));
+                            }
+                        }
+                    };
+
+                    // Determine the signing key (private key for asymmetric, secret for HMAC)
+                    // Use response_secret if provided, otherwise fall back to secret
+                    let sign_key = if config.response_algorithm.is_asymmetric() {
+                        match config.response_secret.as_ref().or(config.secret.as_ref()) {
+                            Some(sk) => sk.as_slice(),
+                            None => {
+                                return Ok(json_error_response(
+                                    http::StatusCode::INTERNAL_SERVER_ERROR,
+                                    "Private key (--response-secret or --secret) is required for asymmetric response signing",
+                                    None,
+                                ));
+                            }
+                        }
+                    } else {
+                        match config.response_secret.as_ref().or(config.secret.as_ref()) {
+                            Some(s) => s.as_slice(),
+                            None => {
+                                return Ok(json_error_response(
+                                    http::StatusCode::INTERNAL_SERVER_ERROR,
+                                    "Secret (--response-secret or --secret) is required for response signing",
+                                    None,
+                                ));
+                            }
                         }
                     };
 
                     match state_value {
                         Some(token) => {
-                            let protocol = if config.algorithm.is_asymmetric() {
-                                let public_key = config.public_key.as_deref().unwrap_or(secret);
-                                OtoroshiProtocol::new_asymmetric_with_ttl(
-                                    public_key,
-                                    config.algorithm,
-                                    secret,
-                                    config.algorithm,
-                                    config.token_ttl,
-                                )
-                            } else {
-                                OtoroshiProtocol::new_with_ttl(
-                                    secret,
-                                    config.algorithm,
-                                    config.token_ttl,
-                                )
-                            };
+                            let protocol = OtoroshiProtocol::new_asymmetric_with_ttl(
+                                verify_key,
+                                config.algorithm,
+                                sign_key,
+                                config.response_algorithm,
+                                config.token_ttl,
+                            );
                             match protocol.process_v2(&token) {
                                 Ok(resp_token) => Some(resp_token),
                                 Err(e) => {
@@ -273,12 +304,15 @@ pub async fn run(
     token_ttl: i64,
     alg: String,
     public_key: Option<String>,
+    response_secret: Option<String>,
+    response_secret_base64: bool,
+    response_alg: Option<String>,
     use_v1: bool,
 ) {
-    // Validate that secret is provided for V2
-    if !use_v1 && secret.is_none() {
+    // Validate that secret or public_key is provided for V2
+    if !use_v1 && secret.is_none() && public_key.is_none() {
         cli_stderr_printline!(
-            "Error: --secret is required for V2 protocol (or use --v1 for simple echo mode)"
+            "Error: --secret or --public-key is required for V2 protocol (or use --v1 for simple echo mode)"
         );
         std::process::exit(1);
     }
@@ -295,6 +329,9 @@ pub async fn run(
         token_ttl,
         alg,
         public_key,
+        response_secret,
+        response_secret_base64,
+        response_alg,
         use_v1,
     ) {
         Ok(config) => Arc::new(config),

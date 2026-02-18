@@ -485,6 +485,16 @@ pub enum ChallengeSubCommand {
         /// if omitted). Can be a file path or just the plain PEM value.
         #[arg(long, env = "OTOROSHI_CHALLENGE_PUBLIC_KEY")]
         public_key: Option<String>,
+        /// Secret or private key for signing the response token (optional, uses --secret if omitted).
+        /// For asymmetric algorithms, this should be the private key PEM.
+        #[arg(long, env = "OTOROSHI_CHALLENGE_RESPONSE_SECRET")]
+        response_secret: Option<String>,
+        /// Interpret the response secret as base64-encoded
+        #[arg(long, action = clap::ArgAction::SetTrue, env = "OTOROSHI_CHALLENGE_RESPONSE_SECRET_BASE64")]
+        response_secret_base64: bool,
+        /// Algorithm for signing the response JWT (optional, uses --alg if omitted)
+        #[arg(long, env = "OTOROSHI_CHALLENGE_RESPONSE_ALG")]
+        response_alg: Option<String>,
         /// Use V1 protocol (simple echo) instead of V2 (JWT challenge)
         #[arg(long, action = clap::ArgAction::SetTrue, env = "OTOROSHI_CHALLENGE_FORCE_V1")]
         v1: bool,

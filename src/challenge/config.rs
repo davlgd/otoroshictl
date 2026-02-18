@@ -45,10 +45,17 @@ pub struct ProxyConfig {
     pub listen_addr: SocketAddr,
     /// Full URL to the backend server.
     pub backend_url: String,
-    /// Secret or private key bytes for JWT signing (required for V2).
+    /// Secret or public key bytes for JWT verification (required for V2).
     pub secret: Option<Vec<u8>>,
     /// Public key PEM bytes for JWT verification (only for asymmetric algorithms).
     pub public_key: Option<Vec<u8>>,
+    /// Algorithm for JWT verification.
+    pub algorithm: Algorithm,
+    /// Secret or private key bytes for signing the response JWT.
+    /// If None, uses the same as `secret`.
+    pub response_secret: Option<Vec<u8>>,
+    /// Algorithm for signing the response JWT.
+    pub response_algorithm: Algorithm,
     /// Header name for incoming challenge token.
     pub state_header: HeaderName,
     /// Header name for outgoing response token.
@@ -57,8 +64,6 @@ pub struct ProxyConfig {
     pub request_timeout: Duration,
     /// JWT token TTL in seconds.
     pub token_ttl: i64,
-    /// Algorithm for JWT signing.
-    pub algorithm: Algorithm,
     /// Protocol version (V1 or V2).
     pub version: ProtocolVersion,
 }
@@ -136,6 +141,17 @@ fn extract_public_key(algorithm: Algorithm, private_pem: &[u8]) -> Result<Vec<u8
     }
 }
 
+/// Resolve a secret value: decode from base64 if requested, otherwise use as UTF-8 bytes.
+fn resolve_secret(secret: &str, is_base64: bool) -> Result<Vec<u8>, ConfigError> {
+    if is_base64 {
+        base64::engine::general_purpose::STANDARD
+            .decode(secret)
+            .map_err(ConfigError::InvalidBase64Secret)
+    } else {
+        Ok(secret.as_bytes().to_vec())
+    }
+}
+
 impl ProxyConfig {
     /// Create a new configuration from CLI arguments.
     #[allow(clippy::too_many_arguments)]
@@ -151,6 +167,9 @@ impl ProxyConfig {
         token_ttl: i64,
         alg: String,
         public_key: Option<String>,
+        response_secret: Option<String>,
+        response_secret_base64: bool,
+        response_alg: Option<String>,
         use_v1: bool,
     ) -> Result<Self, ConfigError> {
         let state_header = HeaderName::from_bytes(state_header.as_bytes()).map_err(|e| {
@@ -197,34 +216,51 @@ impl ProxyConfig {
         }
 
         let algorithm: Algorithm = alg.parse().unwrap_or_default();
+        let response_algorithm: Algorithm = response_alg
+            .as_deref()
+            .map(|s| s.parse().unwrap_or_default())
+            .unwrap_or(algorithm);
 
         // Build secret and public_key bytes based on algorithm type
         let (secret_bytes, public_key_bytes) = if algorithm.is_asymmetric() {
-            // For asymmetric: secret is PEM private key (file path or inline)
+            // For asymmetric verification: secret is PEM private key (to extract public key)
+            // or public_key is provided directly
             let private_pem = match &secret {
-                Some(s) => resolve_pem(s)?,
-                None => {
+                Some(s) => Some(resolve_pem(s)?),
+                None => None,
+            };
+            // Public key: provided or extracted from private key
+            let pub_pem = match (&public_key, &private_pem) {
+                (Some(pk), _) => Some(resolve_pem(pk)?),
+                (None, Some(priv_pem)) => Some(extract_public_key(algorithm, priv_pem)?),
+                (None, None) => {
                     return Err(ConfigError::PublicKeyExtraction(
-                        "private key (--secret) is required for asymmetric algorithms".to_string(),
+                        "public key (--public-key) or private key (--secret) is required for asymmetric algorithms".to_string(),
                     ));
                 }
             };
-            // Public key: provided or extracted from private key
-            let pub_pem = match &public_key {
-                Some(pk) => resolve_pem(pk)?,
-                None => extract_public_key(algorithm, &private_pem)?,
-            };
-            (Some(private_pem), Some(pub_pem))
+            (private_pem, pub_pem)
         } else {
             // For HMAC: decode secret from base64 if requested, otherwise use as UTF-8 bytes
-            let secret_bytes = match secret {
-                Some(s) if secret_base64 => {
-                    Some(base64::engine::general_purpose::STANDARD.decode(&s)?)
-                }
-                Some(s) => Some(s.into_bytes()),
+            let secret_bytes = match &secret {
+                Some(s) => Some(resolve_secret(s, secret_base64)?),
                 None => None,
             };
             (secret_bytes, None)
+        };
+
+        // Build response secret based on response algorithm type
+        let response_secret_bytes = match &response_secret {
+            Some(rs) => {
+                if response_algorithm.is_asymmetric() {
+                    // For asymmetric signing: response_secret is the private key PEM
+                    Some(resolve_pem(rs)?)
+                } else {
+                    // For HMAC signing
+                    Some(resolve_secret(rs, response_secret_base64)?)
+                }
+            }
+            None => None, // Will use secret_bytes as fallback in server.rs
         };
 
         Ok(ProxyConfig {
@@ -232,11 +268,13 @@ impl ProxyConfig {
             backend_url: format!("http://{}:{}", backend_host, backend_port),
             secret: secret_bytes,
             public_key: public_key_bytes,
+            algorithm,
+            response_secret: response_secret_bytes,
+            response_algorithm,
             state_header,
             state_resp_header,
             request_timeout: Duration::from_secs(timeout_secs),
             token_ttl,
-            algorithm,
             version,
         })
     }
@@ -260,6 +298,9 @@ mod tests {
             DEFAULT_TOKEN_TTL_SECS,
             "HS512".to_string(),
             None,
+            None,
+            false,
+            None,
             false,
         );
 
@@ -273,6 +314,7 @@ mod tests {
         assert_eq!(config.request_timeout, Duration::from_secs(30));
         assert_eq!(config.token_ttl, 30);
         assert_eq!(config.algorithm, Algorithm::HS512);
+        assert_eq!(config.response_algorithm, Algorithm::HS512);
         assert_eq!(config.version, ProtocolVersion::V2);
     }
 
@@ -289,6 +331,9 @@ mod tests {
             30,
             30,
             "HS512".to_string(),
+            None,
+            None,
+            false,
             None,
             true,
         );
@@ -312,6 +357,9 @@ mod tests {
             60,
             45,
             "HS256".to_string(),
+            None,
+            None,
+            false,
             None,
             false,
         );
@@ -340,12 +388,43 @@ mod tests {
             30,
             "HS512".to_string(),
             None,
+            None,
+            false,
+            None,
             false,
         );
 
         assert!(config.is_ok());
         let config = config.unwrap();
         assert_eq!(config.secret, Some(b"hello".to_vec()));
+    }
+
+    #[test]
+    fn test_config_with_separate_response_secret() {
+        let config = ProxyConfig::new(
+            8080,
+            "127.0.0.1".to_string(),
+            9000,
+            Some("verify-secret".to_string()),
+            false,
+            DEFAULT_STATE_HEADER.to_string(),
+            DEFAULT_STATE_RESP_HEADER.to_string(),
+            30,
+            30,
+            "HS512".to_string(),
+            None,
+            Some("sign-secret".to_string()),
+            false,
+            Some("HS256".to_string()),
+            false,
+        );
+
+        assert!(config.is_ok());
+        let config = config.unwrap();
+        assert_eq!(config.secret, Some(b"verify-secret".to_vec()));
+        assert_eq!(config.response_secret, Some(b"sign-secret".to_vec()));
+        assert_eq!(config.algorithm, Algorithm::HS512);
+        assert_eq!(config.response_algorithm, Algorithm::HS256);
     }
 
     #[test]
@@ -361,6 +440,9 @@ mod tests {
             30,
             30,
             "HS512".to_string(),
+            None,
+            None,
+            false,
             None,
             false,
         );
@@ -381,6 +463,9 @@ mod tests {
             30,
             30,
             "HS512".to_string(),
+            None,
+            None,
+            false,
             None,
             false,
         );
@@ -406,6 +491,9 @@ mod tests {
             0, // TTL = 0
             "HS512".to_string(),
             None,
+            None,
+            false,
+            None,
             false,
         );
 
@@ -429,6 +517,9 @@ mod tests {
             30,
             -10, // TTL = -10
             "HS512".to_string(),
+            None,
+            None,
+            false,
             None,
             false,
         );
@@ -454,6 +545,9 @@ mod tests {
             30,
             "HS512".to_string(),
             None,
+            None,
+            false,
+            None,
             false,
         );
 
@@ -477,6 +571,9 @@ mod tests {
             30,
             30,
             "HS512".to_string(),
+            None,
+            None,
+            false,
             None,
             false,
         );
@@ -502,6 +599,9 @@ mod tests {
             30,
             "HS512".to_string(),
             None,
+            None,
+            false,
+            None,
             false,
         );
 
@@ -522,6 +622,9 @@ mod tests {
             30,
             30,
             "HS512".to_string(),
+            None,
+            None,
+            false,
             None,
             false,
         );
