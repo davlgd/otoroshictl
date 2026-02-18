@@ -514,7 +514,10 @@ pub enum ChallengeSubCommand {
         /// Algorithm for Consumer Info JWT verification (HS256, HS384, HS512, RS256, RS384, RS512, ES256, ES384)
         #[arg(long, default_value = "HS512", env = "OTOROSHI_CONSUMER_INFO_ALG")]
         consumer_info_alg: String,
-        /// Secret or public key PEM for Consumer Info JWT verification
+        /// HMAC secret, public key PEM, or private key PEM for Consumer Info JWT verification.
+        /// For asymmetric algorithms, accepts a public key PEM, a private key PEM (public key
+        /// is extracted automatically), or a file path to either. Prefer --consumer-info-public-key
+        /// when you only have the public key.
         #[arg(long, env = "OTOROSHI_CONSUMER_INFO_SECRET")]
         consumer_info_secret: Option<String>,
         /// Interpret the consumer info secret as base64-encoded

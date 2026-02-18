@@ -96,6 +96,12 @@ fn resolve_pem(value: &str) -> Result<Vec<u8>, ConfigError> {
     }
 }
 
+/// Returns true if the PEM bytes represent a private key (PKCS#1 or PKCS#8).
+fn is_private_key_pem(pem: &[u8]) -> bool {
+    let s = std::str::from_utf8(pem).unwrap_or("");
+    s.contains("PRIVATE KEY")
+}
+
 /// Extract the public key PEM from a private key PEM for RSA algorithms.
 fn extract_rsa_public_key(private_pem: &[u8]) -> Result<Vec<u8>, ConfigError> {
     use rsa::pkcs8::DecodePrivateKey;
@@ -296,7 +302,13 @@ impl ProxyConfig {
                         (Some(pk), _) => resolve_pem(pk)?,
                         (None, Some(s)) => {
                             let pem = resolve_pem(s)?;
-                            extract_public_key(ci_algorithm, &pem)?
+                            // Accept both a public key PEM and a private key PEM:
+                            // if private, extract the public key; otherwise use as-is.
+                            if is_private_key_pem(&pem) {
+                                extract_public_key(ci_algorithm, &pem)?
+                            } else {
+                                pem
+                            }
                         }
                         (None, None) => return Err(ConfigError::MissingConsumerInfoKey),
                     }
