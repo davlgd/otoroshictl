@@ -1,0 +1,79 @@
+---
+sidebar_position: 2
+---
+
+import Terminal from '@site/src/components/Terminal';
+
+# mTLS mode
+
+`otoroshictl toolbox mtls` lets you read or change the **client authentication mode** on the TLS termination of your Otoroshi cluster.
+
+Otoroshi supports three modes for mutual TLS (mTLS) at the TLS layer:
+
+| Mode | Behaviour |
+|---|---|
+| `None` | Client certificates are not requested |
+| `Want` | Client certificate is requested but not mandatory |
+| `Need` | Client certificate is required — connections without one are rejected |
+
+## Display the current mode
+
+Running the command without `--mode` prints the current client authentication mode of the cluster.
+
+<Terminal
+    command="otoroshictl toolbox mtls"
+    result={`
+mTLS mode: None
+`} />
+
+The output format follows the global `--output` flag:
+
+<Terminal
+    command="otoroshictl toolbox mtls -o json_pretty"
+    result={`
+{
+  "mode": "None"
+}
+`} />
+
+## Change the mode
+
+Pass `--mode` with one of `None`, `Want`, or `Need` to update the cluster configuration.
+
+Disable client certificate checking:
+
+<Terminal command="otoroshictl toolbox mtls --mode None" />
+
+Request a client certificate (optional):
+
+<Terminal command="otoroshictl toolbox mtls --mode Want" />
+
+Require a client certificate (mandatory):
+
+<Terminal command="otoroshictl toolbox mtls --mode Need" />
+
+:::tip
+Changes take effect immediately on the running cluster — no restart required.
+:::
+
+## Command usage
+
+<Terminal
+    command="otoroshictl toolbox mtls -h"
+    result={`
+manage client authentication on the TLS termination
+
+Usage: otoroshictl toolbox mtls [OPTIONS]
+
+Options:
+  -m, --mode <MODE>
+          the mode to use: None, Want, Need
+  -v, --verbose
+          Turn debugging information on
+  -o, --ouput <FORMAT>
+          Change the rendering format (can be one of: json, yaml, json_pretty)
+  -c, --config-file <FILE or URL>
+          Sets a custom config file
+  -h, --help
+          Print help
+`} />

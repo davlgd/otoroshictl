@@ -1,0 +1,41 @@
+---
+sidebar_position: 4
+---
+
+import Terminal from '@site/src/components/Terminal';
+
+# Open backoffice
+
+`otoroshictl toolbox open` fetches the backoffice URL of your current Otoroshi cluster and opens it directly in your default browser.
+
+<Terminal
+    command="otoroshictl toolbox open"
+    result={`
+Opening https://otoroshi-api.oto.tools/bo/index in browser...
+`} />
+
+The command retrieves the URL from the cluster's `/api/infos` endpoint (the same data shown by `otoroshictl infos`), so it always reflects the actual configured backoffice URL rather than a hardcoded address.
+
+:::tip
+This command requires **Otoroshi 17.9 or later**. Earlier versions do not expose the backoffice URL in the infos API.
+:::
+
+## Command usage
+
+<Terminal
+    command="otoroshictl toolbox open -h"
+    result={`
+Open the Otoroshi backoffice in the default browser
+
+Usage: otoroshictl toolbox open [OPTIONS]
+
+Options:
+  -v, --verbose
+          Turn debugging information on
+  -o, --ouput <FORMAT>
+          Change the rendering format (can be one of: json, yaml, json_pretty)
+  -c, --config-file <FILE or URL>
+          Sets a custom config file
+  -h, --help
+          Print help
+`} />

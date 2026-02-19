@@ -1,0 +1,145 @@
+---
+sidebar_position: 3
+---
+
+import Terminal from '@site/src/components/Terminal';
+
+# Add mailer
+
+`otoroshictl toolbox add-mailer` bootstraps a fully configured **email sending endpoint** on your Otoroshi cluster in a single command.
+
+It automatically:
+
+1. Creates an Otoroshi route at `/mailer` backed by the [MailerEndpoint](https://github.com/cloud-apim/otoroshi-plugin-mailer) plugin
+2. Protects that route with an API key (`ApikeyCalls` plugin)
+3. Prints the route URL, credentials, and a ready-to-use `curl` snippet
+
+:::tip Prerequisites
+The [otoroshi-plugin-mailer](https://github.com/cloud-apim/otoroshi-plugin-mailer) plugin must be installed on your Otoroshi instance before running this command.
+:::
+
+## Interactive usage
+
+Running the command without arguments opens an interactive prompt that collects the required SMTP settings:
+
+<Terminal
+    command="otoroshictl toolbox add-mailer"
+    result={`
+SMTP Host: smtp.example.com
+SMTP Port [465]: 465
+SMTP User: sender@example.com
+SMTP Password: ••••••••••••
+
+Creating mailer...
+
+Mailer created successfully!
+
+  Route ID: route_abc123
+  Name: mailer_abc123
+  URL: https://my-cluster.oto.tools/mailer
+
+API Key (save these credentials, they won't be shown again):
+  Client ID: client_xyz
+  Client Secret: secret_xyz
+  Bearer Token: eyJhbGc...
+
+Test with:
+  curl -X POST 'https://my-cluster.oto.tools/mailer' \\
+    -H 'Authorization: Bearer eyJhbGc...' \\
+    -H 'Content-Type: application/json' \\
+    -d '{
+      "subject": "Test Email",
+      "from": "sender@example.com",
+      "to": ["recipient@example.com"],
+      "text": "This is a test email"
+    }'
+
+Documentation: https://github.com/cloud-apim/otoroshi-plugin-mailer
+`} />
+
+## Non-interactive usage
+
+All parameters can be passed as flags or environment variables for scripted or CI usage:
+
+<Terminal
+    command="otoroshictl toolbox add-mailer --host smtp.example.com --port 465 --user sender@example.com"
+/>
+
+| Flag | Environment variable | Default | Description |
+|---|---|---|---|
+| `--host` | `OTOROSHI_MAILER_HOST` | — | SMTP server hostname |
+| `--port` | `OTOROSHI_MAILER_PORT` | `465` | SMTP server port |
+| `--user` | `OTOROSHI_MAILER_USER` | — | SMTP username / email address |
+| *(prompted)* | `OTOROSHI_MAILER_PASSWORD` | — | SMTP password (never echoed) |
+| `--smtps` | `OTOROSHI_MAILER_SMTPS` | `true` | Enable SMTPS |
+| `--starttls` | `OTOROSHI_MAILER_STARTTLS` | `true` | Enable STARTTLS |
+
+## Sending an email
+
+Once the mailer is created, send emails by posting to the route URL with the API key:
+
+```bash
+curl -X POST 'https://my-cluster.oto.tools/mailer' \
+  -H 'Authorization: Bearer <bearer-token>' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "subject": "Hello",
+    "from": "sender@example.com",
+    "to": ["recipient@example.com"],
+    "cc": [],
+    "bcc": [],
+    "text": "Plain text body",
+    "html": "<p>Optional HTML body</p>"
+  }'
+```
+
+## Structured output
+
+The result can be output as JSON or YAML for scripting:
+
+<Terminal
+    command="otoroshictl toolbox add-mailer -o json_pretty --host smtp.example.com --user sender@example.com"
+    result={`
+{
+  "route": {
+    "id": "route_abc123",
+    "name": "mailer_abc123"
+  },
+  "apikey": {
+    "clientId": "client_xyz",
+    "clientSecret": "secret_xyz",
+    "bearerToken": "eyJhbGc..."
+  },
+  "url": "https://my-cluster.oto.tools/mailer"
+}
+`} />
+
+## Command usage
+
+<Terminal
+    command="otoroshictl toolbox add-mailer -h"
+    result={`
+Add a mailer endpoint with SMTP configuration and API key
+
+Usage: otoroshictl toolbox add-mailer [OPTIONS]
+
+Options:
+      --host <HOST>
+          SMTP host (or OTOROSHI_MAILER_HOST env var) [env: OTOROSHI_MAILER_HOST=]
+      --port <PORT>
+          SMTP port (or OTOROSHI_MAILER_PORT env var, default: 465) [env: OTOROSHI_MAILER_PORT=]
+      --user <USER>
+          SMTP user/email (or OTOROSHI_MAILER_USER env var) [env: OTOROSHI_MAILER_USER=]
+      --smtps <SMTPS>
+          Use SMTPS (default: true) [env: OTOROSHI_MAILER_SMTPS=] [possible values: true, false]
+      --starttls <STARTTLS>
+          Use STARTTLS (default: true) [env: OTOROSHI_MAILER_STARTTLS=] [possible values: true, false]
+  -v, --verbose
+          Turn debugging information on
+  -o, --ouput <FORMAT>
+          Change the rendering format (can be one of: json, yaml, json_pretty)
+  -c, --config-file <FILE or URL>
+          Sets a custom config file
+  -h, --help
+          Print help
+`} />
