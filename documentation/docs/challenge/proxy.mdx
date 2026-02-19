@@ -1,0 +1,235 @@
+---
+sidebar_position: 1
+---
+
+import Terminal from '@site/src/components/Terminal';
+
+# Challenge proxy
+
+`otoroshictl challenge proxy` runs a lightweight HTTP reverse proxy that implements the [Otoroshi Communication Protocol](https://maif.github.io/otoroshi/manual/topics/otoroshi-protocol.html) as a sidecar in front of your backend service.
+
+The proxy sits between Otoroshi and your application and takes care of:
+
+- validating the **state challenge** token sent by Otoroshi on every request (V1 echo or V2 JWT)
+- sending back the correct **state response** header so Otoroshi lets the response through
+- optionally decoding the **Consumer Info JWT** (`Otoroshi-Claims`) and forwarding the plain JSON payload to the backend
+- stripping all Otoroshi-specific headers so they never reach your application
+
+```
+Otoroshi ──► challenge proxy :8080 ──► your app :9000
+               │  verify state JWT           │
+               │  decode consumer info       │
+               │  strip otoroshi headers     │
+               └─────────────────────────────┘
+```
+
+## Basic usage (V2 HMAC)
+
+The most common setup: V2 JWT challenge with a shared HMAC secret.
+
+<Terminal
+    command="otoroshictl challenge proxy --secret my-shared-secret"
+    result={`
+Otoroshi V2 (JWT) Challenge Proxy listening on http://0.0.0.0:8080
+Forwarding requests to http://127.0.0.1:9000
+`} />
+
+## V1 protocol (simple echo)
+
+If your Otoroshi route is configured to use the V1 protocol, pass `--v1`:
+
+<Terminal
+    command="otoroshictl challenge proxy --v1"
+    result={`
+Otoroshi V1 (echo) Challenge Proxy listening on http://0.0.0.0:8080
+Forwarding requests to http://127.0.0.1:9000
+`} />
+
+## Changing the listen port and backend
+
+<Terminal
+    command="otoroshictl challenge proxy --port 8081 --backend-host 127.0.0.1 --backend-port 3000 --secret my-secret"
+/>
+
+## Asymmetric algorithms (RS256, ES256, …)
+
+For asymmetric algorithms you provide the private key for signing the response token. The public key used to verify the incoming challenge is extracted automatically; you can also provide it explicitly.
+
+<Terminal
+    command="otoroshictl challenge proxy --alg RS256 --secret /path/to/private.pem"
+/>
+
+Use `--public-key` when you only have the public key (verify-only side):
+
+<Terminal
+    command="otoroshictl challenge proxy --alg RS256 --public-key /path/to/public.pem --response-secret /path/to/private.pem"
+/>
+
+If the signing key for the response is different from the verification key:
+
+<Terminal
+    command="otoroshictl challenge proxy --alg RS256 --secret /path/to/in-public.pem --response-alg RS256 --response-secret /path/to/out-private.pem"
+/>
+
+## Consumer Info JWT
+
+When the [Consumer Info](https://maif.github.io/otoroshi/manual/plugins/built-in-plugins.html) plugin is enabled on your Otoroshi route, it injects a signed JWT into the `Otoroshi-Claims` header that describes the current consumer (API key, user, profile, …).
+
+Enable decoding with `--consumer-info` and provide the matching secret:
+
+<Terminal
+    command="otoroshictl challenge proxy --secret my-secret --consumer-info --consumer-info-secret my-ci-secret"
+/>
+
+The proxy verifies the JWT signature, decodes the payload, and **replaces the JWT with the plain JSON** in the same header before forwarding the request to the backend. Your backend therefore receives the consumer data as a readable JSON object rather than an opaque token.
+
+### Separate output header
+
+To keep the original `Otoroshi-Claims` JWT and write the decoded JSON into a different header:
+
+<Terminal
+    command="otoroshictl challenge proxy --secret my-secret --consumer-info --consumer-info-secret my-ci-secret --consumer-info-out-header X-Consumer-Info"
+/>
+
+| Situation | `Otoroshi-Claims` towards backend | `X-Consumer-Info` towards backend |
+|---|---|---|
+| Token valid | original JWT (kept) | decoded JSON |
+| Token absent / invalid (strict) | — | 401 returned |
+| Token absent / invalid (permissive) | original value (kept) | *(not added)* |
+
+### Permissive mode
+
+By default the proxy returns a `401` when the Consumer Info header is absent or the token is invalid. Pass `--consumer-info-permissive` to let the request through anyway:
+
+<Terminal
+    command="otoroshictl challenge proxy --secret my-secret --consumer-info --consumer-info-secret my-ci-secret --consumer-info-permissive"
+/>
+
+### Asymmetric Consumer Info verification
+
+For routes where Otoroshi signs the Consumer Info JWT with an RSA or EC key:
+
+<Terminal
+    command="otoroshictl challenge proxy --secret my-secret --consumer-info --consumer-info-alg RS256 --consumer-info-secret /path/to/public-or-private.pem"
+/>
+
+`--consumer-info-secret` accepts a public key PEM, a private key PEM (the public key is extracted automatically), or a file path to either. Use `--consumer-info-public-key` when you prefer to be explicit:
+
+<Terminal
+    command="otoroshictl challenge proxy --secret my-secret --consumer-info --consumer-info-alg RS256 --consumer-info-public-key /path/to/public.pem"
+/>
+
+## Otoroshi header stripping
+
+By default the proxy strips all Otoroshi-specific headers (`Otoroshi-State` and the Consumer Info header) before forwarding the request so they never reach your application. To disable this and keep them:
+
+<Terminal
+    command="otoroshictl challenge proxy --secret my-secret --keep-otoroshi-headers"
+/>
+
+| Header | Default (strip) | `--keep-otoroshi-headers` |
+|---|---|---|
+| `Otoroshi-State` | removed | forwarded |
+| `Otoroshi-Claims` (or custom) | removed | forwarded or replaced by JSON if consumer info enabled |
+
+## Environment variables
+
+All flags can be set via environment variables, which is the recommended approach for production deployments.
+
+| Environment variable | Flag | Default |
+|---|---|---|
+| `OTOROSHI_CHALLENGE_FRONTEND_PORT` | `--port` | `8080` |
+| `OTOROSHI_CHALLENGE_BACKEND_HOST` | `--backend-host` | `127.0.0.1` |
+| `OTOROSHI_CHALLENGE_BACKEND_PORT` | `--backend-port` | `9000` |
+| `OTOROSHI_CHALLENGE_SECRET` | `--secret` | — |
+| `OTOROSHI_CHALLENGE_SECRET_BASE64` | `--secret-base64` | `false` |
+| `OTOROSHI_CHALLENGE_ALG` | `--alg` | `HS512` |
+| `OTOROSHI_CHALLENGE_PUBLIC_KEY` | `--public-key` | — |
+| `OTOROSHI_CHALLENGE_RESPONSE_SECRET` | `--response-secret` | — |
+| `OTOROSHI_CHALLENGE_RESPONSE_SECRET_BASE64` | `--response-secret-base64` | `false` |
+| `OTOROSHI_CHALLENGE_RESPONSE_ALG` | `--response-alg` | *(same as `--alg`)* |
+| `OTOROSHI_CHALLENGE_REQ_HEADER_NAME` | `--state-header` | `Otoroshi-State` |
+| `OTOROSHI_CHALLENGE_RESP_HEADER_NAME` | `--state-resp-header` | `Otoroshi-State-Resp` |
+| `OTOROSHI_CHALLENGE_TOKEN_TTL` | `--token-ttl` | `30` |
+| `OTOROSHI_CHALLENGE_TIMEOUT` | `--timeout` | `30` |
+| `OTOROSHI_CHALLENGE_FORCE_V1` | `--v1` | `false` |
+| `OTOROSHI_CHALLENGE_KEEP_HEADERS` | `--keep-otoroshi-headers` | `false` |
+| `OTOROSHI_CONSUMER_INFO_ENABLED` | `--consumer-info` | `false` |
+| `OTOROSHI_CONSUMER_INFO_HEADER` | `--consumer-info-header` | `Otoroshi-Claims` |
+| `OTOROSHI_CONSUMER_INFO_OUT_HEADER` | `--consumer-info-out-header` | *(same as input header)* |
+| `OTOROSHI_CONSUMER_INFO_ALG` | `--consumer-info-alg` | `HS512` |
+| `OTOROSHI_CONSUMER_INFO_SECRET` | `--consumer-info-secret` | — |
+| `OTOROSHI_CONSUMER_INFO_SECRET_BASE64` | `--consumer-info-secret-base64` | `false` |
+| `OTOROSHI_CONSUMER_INFO_PUBLIC_KEY` | `--consumer-info-public-key` | — |
+| `OTOROSHI_CONSUMER_INFO_PERMISSIVE` | `--consumer-info-permissive` | `false` |
+
+## Command usage
+
+<Terminal
+    command="otoroshictl challenge proxy -h"
+    result={`
+Secure backend access via Otoroshi Communication Protocol (V2 JWT by default)
+
+Usage: otoroshictl challenge proxy [OPTIONS]
+
+Options:
+  -p, --port <PORT>
+          Port to listen on [env: OTOROSHI_CHALLENGE_FRONTEND_PORT=] [default: 8080]
+  -b, --backend-port <BACKEND_PORT>
+          Backend port to forward requests to [env: OTOROSHI_CHALLENGE_BACKEND_PORT=] [default: 9000]
+      --backend-host <BACKEND_HOST>
+          Backend host [env: OTOROSHI_CHALLENGE_BACKEND_HOST=] [default: 127.0.0.1]
+  -s, --secret <SECRET>
+          Otoroshi shared secret for JWT signing (required for V2) [env: OTOROSHI_CHALLENGE_SECRET=]
+      --secret-base64
+          Interpret the secret as base64-encoded [env: OTOROSHI_CHALLENGE_SECRET_BASE64=]
+      --alg <ALG>
+          Algorithm for JWT signing (HS256, HS384, HS512, RS256, RS384, RS512, ES256, ES384)
+          [env: OTOROSHI_CHALLENGE_ALG=] [default: HS512]
+      --public-key <PUBLIC_KEY>
+          Public key PEM file for asymmetric algorithms [env: OTOROSHI_CHALLENGE_PUBLIC_KEY=]
+      --response-secret <RESPONSE_SECRET>
+          Secret or private key for signing the response token [env: OTOROSHI_CHALLENGE_RESPONSE_SECRET=]
+      --response-secret-base64
+          Interpret the response secret as base64-encoded [env: OTOROSHI_CHALLENGE_RESPONSE_SECRET_BASE64=]
+      --response-alg <RESPONSE_ALG>
+          Algorithm for signing the response JWT [env: OTOROSHI_CHALLENGE_RESPONSE_ALG=]
+      --state-header <STATE_HEADER>
+          Header name for incoming challenge token from Otoroshi
+          [env: OTOROSHI_CHALLENGE_REQ_HEADER_NAME=] [default: Otoroshi-State]
+      --state-resp-header <STATE_RESP_HEADER>
+          Header name for response token sent back to Otoroshi
+          [env: OTOROSHI_CHALLENGE_RESP_HEADER_NAME=] [default: Otoroshi-State-Resp]
+      --token-ttl <TOKEN_TTL>
+          JWT token TTL in seconds [env: OTOROSHI_CHALLENGE_TOKEN_TTL=] [default: 30]
+      --timeout <TIMEOUT>
+          Request timeout in seconds [env: OTOROSHI_CHALLENGE_TIMEOUT=] [default: 30]
+      --v1
+          Use V1 protocol (simple echo) instead of V2 (JWT challenge) [env: OTOROSHI_CHALLENGE_FORCE_V1=]
+      --keep-otoroshi-headers
+          Keep Otoroshi headers in the request forwarded to the backend (stripped by default)
+          [env: OTOROSHI_CHALLENGE_KEEP_HEADERS=]
+      --consumer-info
+          Enable Consumer Info JWT processing [env: OTOROSHI_CONSUMER_INFO_ENABLED=]
+      --consumer-info-header <CONSUMER_INFO_HEADER>
+          Header name containing the Consumer Info JWT
+          [env: OTOROSHI_CONSUMER_INFO_HEADER=] [default: Otoroshi-Claims]
+      --consumer-info-out-header <CONSUMER_INFO_OUT_HEADER>
+          Header name for the decoded Consumer Info JSON output [env: OTOROSHI_CONSUMER_INFO_OUT_HEADER=]
+      --consumer-info-alg <CONSUMER_INFO_ALG>
+          Algorithm for Consumer Info JWT verification
+          [env: OTOROSHI_CONSUMER_INFO_ALG=] [default: HS512]
+      --consumer-info-secret <CONSUMER_INFO_SECRET>
+          HMAC secret, public key PEM, or private key PEM for Consumer Info JWT verification
+          [env: OTOROSHI_CONSUMER_INFO_SECRET=]
+      --consumer-info-secret-base64
+          Interpret the consumer info secret as base64-encoded [env: OTOROSHI_CONSUMER_INFO_SECRET_BASE64=]
+      --consumer-info-public-key <CONSUMER_INFO_PUBLIC_KEY>
+          Public key PEM for asymmetric Consumer Info JWT verification
+          [env: OTOROSHI_CONSUMER_INFO_PUBLIC_KEY=]
+      --consumer-info-permissive
+          Allow requests through even if the Consumer Info header is absent or invalid
+          [env: OTOROSHI_CONSUMER_INFO_PERMISSIVE=]
+  -h, --help
+          Print help
+`} />
