@@ -1,0 +1,123 @@
+---
+sidebar_position: 1
+---
+
+import Terminal from '@site/src/components/Terminal';
+
+# TCP tunnel
+
+`otoroshictl tcp-tunnel` starts a local TCP server and bridges every incoming connection to a remote TCP service through Otoroshi via a WebSocket tunnel.
+
+```
+your client ──► local TCP :2222 ──► WebSocket ──► Otoroshi ──► remote TCP service
+                otoroshictl                          │
+                                             auth & access control
+```
+
+The typical use-case is accessing a private TCP service (SSH, PostgreSQL, Redis, …) that is only reachable from the Otoroshi cluster, without opening any extra network port.
+
+## How it works
+
+For each incoming TCP connection, `otoroshictl`:
+
+1. Opens a dedicated WebSocket connection to `/.well-known/otoroshi/tunnel` on the Otoroshi routing layer
+2. Forwards raw TCP bytes as binary WebSocket frames in both directions
+3. Closes the WebSocket when the TCP connection is terminated
+
+## Basic usage — SSH via API key
+
+The most common setup: SSH forwarding authenticated with an Otoroshi API key.
+
+<Terminal
+    command="otoroshictl tcp-tunnel --host myotoroshi.example.com:9999 --tls --remote-host ssh.internal.com --remote-port 22 --local-port 2222 --access-type apikey --apikey-client-id my-client-id --apikey-client-secret my-client-secret"
+    result={`
+[INFO  otoroshictl::tunnels::tcp] TCP tunnel listening on 127.0.0.1:2222 → ssh.internal.com:22 via Otoroshi (myotoroshi.example.com:9999)
+[INFO  otoroshictl::tunnels::tcp] TCP tunnel ready, waiting for connections ...
+`} />
+
+Then connect your SSH client normally:
+
+<Terminal
+    command="ssh -p 2222 user@127.0.0.1"
+/>
+
+## Bearer token authentication
+
+Use a JWT or OAuth 2.0 access token with `--access-type bearer`:
+
+<Terminal
+    command="otoroshictl tcp-tunnel --host myotoroshi.example.com --tls --remote-host db.internal.com --remote-port 5432 --local-port 5432 --access-type bearer --bearer-token eyJhbGciOiJSUzI1NiJ9..."
+/>
+
+## Private apps session token
+
+To authenticate via an Otoroshi private app session (papp token):
+
+<Terminal
+    command="otoroshictl tcp-tunnel --host myotoroshi.example.com --tls --remote-host redis.internal.com --remote-port 6379 --local-port 6379 --access-type session --session-token <papp-token>"
+/>
+
+The session token is transmitted as the `pappsToken` query parameter in the WebSocket URL.
+
+## Public access (no authentication)
+
+<Terminal
+    command="otoroshictl tcp-tunnel --host myotoroshi.example.com --remote-host service.internal.com --remote-port 9000 --local-port 9000 --access-type public"
+/>
+
+## Custom local address
+
+By default the local server listens on `127.0.0.1`. Use `--local-host` to bind to another address:
+
+<Terminal
+    command="otoroshictl tcp-tunnel --host myotoroshi.example.com --tls --remote-host ssh.internal.com --remote-port 22 --local-host 0.0.0.0 --local-port 2222 --access-type apikey --apikey-client-id my-client-id --apikey-client-secret my-client-secret"
+/>
+
+:::tip
+Each connection to the local port opens its own WebSocket to Otoroshi, so multiple clients can connect simultaneously without any extra configuration.
+:::
+
+## Authentication types
+
+| `--access-type` | Mechanism | Required flags |
+|---|---|---|
+| `apikey` *(default)* | `Authorization: Basic base64(clientId:clientSecret)` header | `--apikey-client-id`, `--apikey-client-secret` |
+| `bearer` / `jwt` | `Authorization: Bearer <token>` header | `--bearer-token` |
+| `session` | `pappsToken=<token>` query parameter | `--session-token` |
+| `public` | No authentication | — |
+
+## Command usage
+
+<Terminal
+    command="otoroshictl tcp-tunnel -h"
+    result={`
+Tunnel TCP traffic through an otoroshi cluster (e.g. expose SSH via Otoroshi)
+
+Usage: otoroshictl tcp-tunnel [OPTIONS] --host <HOST> --remote-host <REMOTE_HOST> --remote-port <REMOTE_PORT>
+
+Options:
+      --host <HOST>
+          The Otoroshi routing hostname (e.g. myotoroshi.example.com or myotoroshi.example.com:9999)
+      --tls
+          Use TLS (WSS) for the WebSocket connection to Otoroshi
+      --local-host <LOCAL_HOST>
+          Local address to listen on [default: 127.0.0.1]
+      --local-port <LOCAL_PORT>
+          Local port to listen on [default: 2222]
+      --remote-host <REMOTE_HOST>
+          Remote host that Otoroshi should forward traffic to
+      --remote-port <REMOTE_PORT>
+          Remote port that Otoroshi should forward traffic to
+      --access-type <ACCESS_TYPE>
+          Authentication type: apikey, bearer, session, or public [default: apikey]
+      --apikey-client-id <APIKEY_CLIENT_ID>
+          API key client ID (for apikey access type)
+      --apikey-client-secret <APIKEY_CLIENT_SECRET>
+          API key client secret (for apikey access type)
+      --bearer-token <BEARER_TOKEN>
+          Bearer token - JWT or OAuth access token (for bearer access type)
+      --session-token <SESSION_TOKEN>
+          Private apps session token - papp token (for session access type)
+  -h, --help
+          Print help
+`} />

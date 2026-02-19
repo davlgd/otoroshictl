@@ -1,0 +1,128 @@
+---
+sidebar_position: 2
+---
+
+import Terminal from '@site/src/components/Terminal';
+
+# UDP tunnel
+
+`otoroshictl udp-tunnel` starts a local UDP server and bridges datagrams to a remote UDP service through Otoroshi via a persistent WebSocket tunnel.
+
+```
+your client ──► local UDP :1053 ──► WebSocket ──► Otoroshi ──► remote UDP service
+                otoroshictl                          │
+                                             auth & access control
+```
+
+The typical use-case is forwarding UDP-based protocols (DNS, syslog, SNMP, game servers, …) to internal services only reachable from the Otoroshi cluster.
+
+## How it works
+
+Unlike the TCP tunnel which opens one WebSocket per connection, the UDP tunnel uses **a single persistent WebSocket** for all datagrams:
+
+1. A single WebSocket connection is established to `/.well-known/otoroshi/tunnel` on Otoroshi
+2. Each incoming datagram is wrapped in a JSON frame `{"address": "…", "port": …, "data": "<base64>"}` and sent over the WebSocket
+3. Otoroshi replies with the same JSON format; `otoroshictl` decodes and forwards the payload back to the originating client
+4. If the WebSocket drops, it reconnects automatically every 2 seconds while keeping the UDP socket bound
+
+## Basic usage — DNS via API key
+
+Tunnel a DNS resolver authenticated with an Otoroshi API key:
+
+<Terminal
+    command="otoroshictl udp-tunnel --host myotoroshi.example.com:9999 --tls --remote-host dns.internal.com --remote-port 53 --local-port 1053 --access-type apikey --apikey-client-id my-client-id --apikey-client-secret my-client-secret"
+    result={`
+[INFO  otoroshictl::tunnels::udp] UDP tunnel listening on 127.0.0.1:1053 → dns.internal.com:53 via Otoroshi (myotoroshi.example.com:9999)
+[INFO  otoroshictl::tunnels::udp] UDP tunnel ready, waiting for datagrams ...
+[INFO  otoroshictl::tunnels::udp] Connecting WebSocket tunnel ...
+[INFO  otoroshictl::tunnels::udp] WebSocket tunnel connected
+`} />
+
+Then query the local DNS resolver:
+
+<Terminal
+    command="dig @127.0.0.1 -p 1053 internal.service.com"
+/>
+
+:::tip
+The local port defaults to `1053` (not `53`) so that `otoroshictl` does not require root privileges. You can then configure your system or application to use `127.0.0.1:1053` as its resolver.
+:::
+
+## Bearer token authentication
+
+<Terminal
+    command="otoroshictl udp-tunnel --host myotoroshi.example.com --tls --remote-host syslog.internal.com --remote-port 514 --local-port 5140 --access-type bearer --bearer-token eyJhbGciOiJSUzI1NiJ9..."
+/>
+
+## Private apps session token
+
+<Terminal
+    command="otoroshictl udp-tunnel --host myotoroshi.example.com --tls --remote-host snmp.internal.com --remote-port 161 --local-port 10161 --access-type session --session-token <papp-token>"
+/>
+
+## Public access (no authentication)
+
+<Terminal
+    command="otoroshictl udp-tunnel --host myotoroshi.example.com --remote-host service.internal.com --remote-port 9999 --local-port 9999 --access-type public"
+/>
+
+## Custom local address
+
+<Terminal
+    command="otoroshictl udp-tunnel --host myotoroshi.example.com --tls --remote-host dns.internal.com --remote-port 53 --local-host 0.0.0.0 --local-port 1053 --access-type apikey --apikey-client-id my-client-id --apikey-client-secret my-client-secret"
+/>
+
+## Differences from the TCP tunnel
+
+| | TCP tunnel | UDP tunnel |
+|---|---|---|
+| WebSocket connections | One per TCP connection | One shared, persistent |
+| Reconnection | Per connection | Automatic (every 2 s) |
+| Framing | Raw binary bytes | JSON `{"address", "port", "data"}` |
+| State | Connection-oriented | Stateless / connectionless |
+| Alias | `tt` | `ut` |
+
+## Authentication types
+
+| `--access-type` | Mechanism | Required flags |
+|---|---|---|
+| `apikey` *(default)* | `Authorization: Basic base64(clientId:clientSecret)` header | `--apikey-client-id`, `--apikey-client-secret` |
+| `bearer` / `jwt` | `Authorization: Bearer <token>` header | `--bearer-token` |
+| `session` | `pappsToken=<token>` query parameter | `--session-token` |
+| `public` | No authentication | — |
+
+## Command usage
+
+<Terminal
+    command="otoroshictl udp-tunnel -h"
+    result={`
+Tunnel UDP traffic through an otoroshi cluster
+
+Usage: otoroshictl udp-tunnel [OPTIONS] --host <HOST> --remote-host <REMOTE_HOST> --remote-port <REMOTE_PORT>
+
+Options:
+      --host <HOST>
+          The Otoroshi routing hostname (e.g. myotoroshi.example.com or myotoroshi.example.com:9999)
+      --tls
+          Use TLS (WSS) for the WebSocket connection to Otoroshi
+      --local-host <LOCAL_HOST>
+          Local address to listen on [default: 127.0.0.1]
+      --local-port <LOCAL_PORT>
+          Local port to listen on [default: 1053]
+      --remote-host <REMOTE_HOST>
+          Remote host that Otoroshi should forward traffic to
+      --remote-port <REMOTE_HOST>
+          Remote port that Otoroshi should forward traffic to
+      --access-type <ACCESS_TYPE>
+          Authentication type: apikey, bearer, session, or public [default: apikey]
+      --apikey-client-id <APIKEY_CLIENT_ID>
+          API key client ID (for apikey access type)
+      --apikey-client-secret <APIKEY_CLIENT_SECRET>
+          API key client secret (for apikey access type)
+      --bearer-token <BEARER_TOKEN>
+          Bearer token - JWT or OAuth access token (for bearer access type)
+      --session-token <SESSION_TOKEN>
+          Private apps session token - papp token (for session access type)
+  -h, --help
+          Print help
+`} />
