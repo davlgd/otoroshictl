@@ -151,6 +151,34 @@ async fn main() {
                 }
             },
         },
+        Some(Commands::UdpTunnel {
+            host,
+            tls,
+            local_host,
+            local_port,
+            remote_host,
+            remote_port,
+            access_type,
+            apikey_client_id,
+            apikey_client_secret,
+            bearer_token,
+            session_token,
+        }) => {
+            tunnels::udp::UdpTunnel::start(tunnels::udp::UdpTunnelOpts {
+                host: host.to_string(),
+                tls: *tls,
+                local_host: local_host.to_string(),
+                local_port: *local_port,
+                remote_host: remote_host.to_string(),
+                remote_port: *remote_port,
+                access_type: access_type.to_string(),
+                apikey_client_id: apikey_client_id.clone(),
+                apikey_client_secret: apikey_client_secret.clone(),
+                bearer_token: bearer_token.clone(),
+                session_token: session_token.clone(),
+            })
+            .await
+        }
         Some(Commands::TcpTunnel {
             host,
             tls,
