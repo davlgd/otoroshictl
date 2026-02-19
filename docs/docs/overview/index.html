@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.1.1">
 <title data-rh="true">Overview | otoroshictl</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://cloud-apim.github.io/otoroshictl/img/otoroshictl-logo-nav.png"><meta data-rh="true" name="twitter:image" content="https://cloud-apim.github.io/otoroshictl/img/otoroshictl-logo-nav.png"><meta data-rh="true" property="og:url" content="https://cloud-apim.github.io/otoroshictl/docs/overview"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Overview | otoroshictl"><meta data-rh="true" name="description" content="Let&#x27;s discover otoroshictl the command line tool to manage your otoroshi clusters with style."><meta data-rh="true" property="og:description" content="Let&#x27;s discover otoroshictl the command line tool to manage your otoroshi clusters with style."><link data-rh="true" rel="icon" href="/otoroshictl/img/otoroshictl-logo-nav.png"><link data-rh="true" rel="canonical" href="https://cloud-apim.github.io/otoroshictl/docs/overview"><link data-rh="true" rel="alternate" href="https://cloud-apim.github.io/otoroshictl/docs/overview" hreflang="en"><link data-rh="true" rel="alternate" href="https://cloud-apim.github.io/otoroshictl/docs/overview" hreflang="x-default"><link rel="stylesheet" href="/otoroshictl/assets/css/styles.24739b37.css">
-<script src="/otoroshictl/assets/js/runtime~main.42fd8ea3.js" defer="defer"></script>
+<script src="/otoroshictl/assets/js/runtime~main.2bc266cc.js" defer="defer"></script>
 <script src="/otoroshictl/assets/js/main.f5b0c39b.js" defer="defer"></script>
 </head>
 <body class="navigation-with-keyboard">
@@ -23,17 +23,20 @@ otoroshictl is an open-source tool proudly provided by Cloud APIM (https://www.c
 Usage: otoroshictl [OPTIONS] [COMMAND]
 
 Commands:
-  resources      Manage all the resources (entities) of the current otoroshi cluster
-  sidecar        Manage an otoroshi mesh sidecar
-  tcp-tunnel     Manage otoroshi tcp tunnel to access tcp resources through the current otoroshi cluster (not implemented yet)
-  cloud-apim     Manage cloud apim clusters
-  remote-tunnel  Exposes local processes on the current otoroshi cluster through the otoroshi remote tunnel feature
+  resources      Manage all the resources (entities) of the current otoroshi cluster [aliases: rs]
+  sidecar        Manage an otoroshi mesh sidecar [aliases: sc]
+  udp-tunnel     Tunnel UDP traffic through an otoroshi cluster [aliases: ut]
+  tcp-tunnel     Tunnel TCP traffic through an otoroshi cluster (e.g. expose SSH via Otoroshi) [aliases: tt]
+  cloud-apim     Manage cloud apim clusters [aliases: ca]
+  remote-tunnel  Exposes local processes on the current otoroshi cluster through the otoroshi remote tunnel feature [aliases: rt]
   version        Display the version of the current otoroshi cluster
   infos          Display the informations about the current otoroshi cluster
   entities       Display the managed entities of the current otoroshi cluster
   health         Display the health status of the current otoroshi cluster
   metrics        Display metrics of the current otoroshi cluster
-  config         Manage all the otoroshi cluster configurations you want to connect to with otoroshictl
+  config         Manage all the otoroshi cluster configurations you want to connect to with otoroshictl [aliases: cfg]
+  toolbox        A toolbox of useful commands to manage your otoroshi cluster [aliases: tb]
+  challenge      Secure backend access via Otoroshi Communication Protocol (V1/V2) [aliases: ch]
   help           Print this message or the help of the given subcommand(s)
 
 Options:

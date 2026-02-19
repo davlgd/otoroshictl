@@ -24,17 +24,20 @@ otoroshictl is an open-source tool proudly provided by Cloud APIM (https://www.c
 Usage: otoroshictl [OPTIONS] [COMMAND]
 
 Commands:
-  resources      Manage all the resources (entities) of the current otoroshi cluster
-  sidecar        Manage an otoroshi mesh sidecar
-  tcp-tunnel     Manage otoroshi tcp tunnel to access tcp resources through the current otoroshi cluster (not implemented yet)
-  cloud-apim     Manage cloud apim clusters
-  remote-tunnel  Exposes local processes on the current otoroshi cluster through the otoroshi remote tunnel feature
+  resources      Manage all the resources (entities) of the current otoroshi cluster [aliases: rs]
+  sidecar        Manage an otoroshi mesh sidecar [aliases: sc]
+  udp-tunnel     Tunnel UDP traffic through an otoroshi cluster [aliases: ut]
+  tcp-tunnel     Tunnel TCP traffic through an otoroshi cluster (e.g. expose SSH via Otoroshi) [aliases: tt]
+  cloud-apim     Manage cloud apim clusters [aliases: ca]
+  remote-tunnel  Exposes local processes on the current otoroshi cluster through the otoroshi remote tunnel feature [aliases: rt]
   version        Display the version of the current otoroshi cluster
   infos          Display the informations about the current otoroshi cluster
   entities       Display the managed entities of the current otoroshi cluster
   health         Display the health status of the current otoroshi cluster
   metrics        Display metrics of the current otoroshi cluster
-  config         Manage all the otoroshi cluster configurations you want to connect to with otoroshictl
+  config         Manage all the otoroshi cluster configurations you want to connect to with otoroshictl [aliases: cfg]
+  toolbox        A toolbox of useful commands to manage your otoroshi cluster [aliases: tb]
+  challenge      Secure backend access via Otoroshi Communication Protocol (V1/V2) [aliases: ch]
   help           Print this message or the help of the given subcommand(s)
 
 Options:
