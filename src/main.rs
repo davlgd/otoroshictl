@@ -151,9 +151,33 @@ async fn main() {
                 }
             },
         },
-        Some(Commands::TcpTunnel {}) => {
-            // crate::tunnels::tcp::TcpTunnel::start().await;
-            error!("not implemented yet !") // TODO: finish implementation !!!
+        Some(Commands::TcpTunnel {
+            host,
+            tls,
+            local_host,
+            local_port,
+            remote_host,
+            remote_port,
+            access_type,
+            apikey_client_id,
+            apikey_client_secret,
+            bearer_token,
+            session_token,
+        }) => {
+            tunnels::tcp::TcpTunnel::start(tunnels::tcp::TcpTunnelOpts {
+                host: host.to_string(),
+                tls: *tls,
+                local_host: local_host.to_string(),
+                local_port: *local_port,
+                remote_host: remote_host.to_string(),
+                remote_port: *remote_port,
+                access_type: access_type.to_string(),
+                apikey_client_id: apikey_client_id.clone(),
+                apikey_client_secret: apikey_client_secret.clone(),
+                bearer_token: bearer_token.clone(),
+                session_token: session_token.clone(),
+            })
+            .await
         }
         Some(Commands::Toolbox { command }) => match command {
             ToolboxSubCommand::Mtls { mode } => {

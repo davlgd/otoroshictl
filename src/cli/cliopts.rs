@@ -605,8 +605,43 @@ pub enum Commands {
         #[command(subcommand)]
         command: SidecarSubCommand,
     },
-    /// Manage otoroshi tcp tunnel to access tcp resources through the current otoroshi cluster (not implemented yet)
-    TcpTunnel {},
+    /// Tunnel TCP traffic through an otoroshi cluster (e.g. expose SSH via Otoroshi)
+    #[clap(visible_alias = "tt")]
+    TcpTunnel {
+        /// The Otoroshi routing hostname (e.g. myotoroshi.example.com or myotoroshi.example.com:9999)
+        #[clap(long)]
+        host: String,
+        /// Use TLS (WSS) for the WebSocket connection to Otoroshi
+        #[clap(long, action, default_value = "false")]
+        tls: bool,
+        /// Local address to listen on
+        #[clap(long, default_value = "127.0.0.1")]
+        local_host: String,
+        /// Local port to listen on
+        #[clap(long, default_value = "2222")]
+        local_port: u16,
+        /// Remote host that Otoroshi should forward traffic to
+        #[clap(long)]
+        remote_host: String,
+        /// Remote port that Otoroshi should forward traffic to
+        #[clap(long)]
+        remote_port: u16,
+        /// Authentication type: apikey, bearer, session, or public
+        #[clap(long, default_value = "apikey")]
+        access_type: String,
+        /// API key client ID (for apikey access type)
+        #[clap(long)]
+        apikey_client_id: Option<String>,
+        /// API key client secret (for apikey access type)
+        #[clap(long)]
+        apikey_client_secret: Option<String>,
+        /// Bearer token - JWT or OAuth access token (for bearer access type)
+        #[clap(long)]
+        bearer_token: Option<String>,
+        /// Private apps session token - papp token (for session access type)
+        #[clap(long)]
+        session_token: Option<String>,
+    },
     /// Manage cloud apim clusters
     #[clap(visible_alias = "ca")]
     CloudApim {
