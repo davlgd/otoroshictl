@@ -63,7 +63,7 @@ export OTOROSHI_CHALLENGE_TOKEN_TTL=30
 export OTOROSHI_CONSUMER_INFO_ENABLED=true
 
 # Header containing the Consumer Info JWT (default: Otoroshi-Claims)
-export OTOROSHI_CONSUMER_INFO_HEADER=Otoroshi-Claims
+export OTOROSHI_CONSUMER_INFO_HEADER=Otoroshi-Consumer-Infos
 
 # Header where the decoded JSON payload is written.
 # Defaults to the same header as OTOROSHI_CONSUMER_INFO_HEADER (replaces the JWT).
