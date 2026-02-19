@@ -257,13 +257,24 @@ impl Service<Request<Body>> for ProxySvc {
                 if is_hop_by_hop_header(name) {
                     continue;
                 }
-                // If consumer info is active, in_header == out_header, and we have decoded JSON,
-                // skip the original JWT header — it will be replaced by the decoded JSON below.
+                // Strip the Otoroshi state-challenge header if requested.
+                if config.strip_otoroshi_headers && name == config.state_header {
+                    continue;
+                }
+                // Consumer info header handling.
                 if let Some(ci_config) = &config.consumer_info {
-                    if ci_config.in_header == ci_config.out_header
-                        && consumer_info_decoded.is_some()
-                        && name == ci_config.in_header
-                    {
+                    let skip = if config.strip_otoroshi_headers {
+                        // Strip mode: always remove the raw JWT — the decoded JSON
+                        // is added separately after the loop if available.
+                        name == ci_config.in_header
+                    } else {
+                        // Normal mode: only remove the header when it is being
+                        // replaced in-place by the decoded JSON (same header name).
+                        ci_config.in_header == ci_config.out_header
+                            && consumer_info_decoded.is_some()
+                            && name == ci_config.in_header
+                    };
+                    if skip {
                         continue;
                     }
                 }
@@ -387,6 +398,7 @@ pub async fn run(
     consumer_info_secret_base64: bool,
     consumer_info_public_key: Option<String>,
     consumer_info_strict: bool,
+    strip_otoroshi_headers: bool,
 ) {
     // Validate that secret or public_key is provided for V2
     if !use_v1 && secret.is_none() && public_key.is_none() {
@@ -420,6 +432,7 @@ pub async fn run(
         consumer_info_secret_base64,
         consumer_info_public_key,
         consumer_info_strict,
+        strip_otoroshi_headers,
     ) {
         Ok(config) => Arc::new(config),
         Err(e) => {

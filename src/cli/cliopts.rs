@@ -529,6 +529,10 @@ pub enum ChallengeSubCommand {
         /// Allow requests through even if the Consumer Info header is absent or invalid
         #[arg(long, action = clap::ArgAction::SetTrue, env = "OTOROSHI_CONSUMER_INFO_PERMISSIVE")]
         consumer_info_permissive: bool,
+        /// Keep Otoroshi headers (state challenge + consumer info) in the request forwarded
+        /// to the backend. By default they are stripped.
+        #[arg(long, action = clap::ArgAction::SetTrue, env = "OTOROSHI_CHALLENGE_KEEP_HEADERS")]
+        keep_otoroshi_headers: bool,
     },
 }
 

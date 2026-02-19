@@ -81,6 +81,8 @@ pub struct ProxyConfig {
     pub version: ProtocolVersion,
     /// Optional Consumer Info JWT processing configuration.
     pub consumer_info: Option<ConsumerInfoConfig>,
+    /// Strip Otoroshi-specific headers (state challenge + consumer info) before forwarding.
+    pub strip_otoroshi_headers: bool,
 }
 
 /// Read a PEM value: if it points to an existing file, read the file; otherwise use as-is.
@@ -200,6 +202,7 @@ impl ProxyConfig {
         consumer_info_secret_base64: bool,
         consumer_info_public_key: Option<String>,
         consumer_info_strict: bool,
+        strip_otoroshi_headers: bool,
     ) -> Result<Self, ConfigError> {
         let state_header = HeaderName::from_bytes(state_header.as_bytes()).map_err(|e| {
             ConfigError::InvalidHeader {
@@ -358,6 +361,7 @@ impl ProxyConfig {
             token_ttl,
             version,
             consumer_info,
+            strip_otoroshi_headers,
         })
     }
 }
@@ -392,6 +396,7 @@ mod tests {
             false,
             None,
             false,
+            true,
         );
 
         assert!(config.is_ok());
@@ -434,6 +439,7 @@ mod tests {
             false,
             None,
             false,
+            true,
         );
 
         assert!(config.is_ok());
@@ -468,6 +474,7 @@ mod tests {
             false,
             None,
             false,
+            true,
         );
 
         assert!(config.is_ok());
@@ -506,6 +513,7 @@ mod tests {
             false,
             None,
             false,
+            true,
         );
 
         assert!(config.is_ok());
@@ -539,6 +547,7 @@ mod tests {
             false,
             None,
             false,
+            true,
         );
 
         assert!(config.is_ok());
@@ -575,6 +584,7 @@ mod tests {
             false,
             None,
             false,
+            true,
         );
 
         assert!(config.is_err());
@@ -606,6 +616,7 @@ mod tests {
             false,
             None,
             false,
+            true,
         );
 
         assert!(config.is_err());
@@ -641,6 +652,7 @@ mod tests {
             false,
             None,
             false,
+            true,
         );
 
         assert!(config.is_err());
@@ -676,6 +688,7 @@ mod tests {
             false,
             None,
             false,
+            true,
         );
 
         assert!(config.is_err());
@@ -711,6 +724,7 @@ mod tests {
             false,
             None,
             false,
+            true,
         );
 
         assert!(config.is_err());
@@ -746,6 +760,7 @@ mod tests {
             false,
             None,
             false,
+            true,
         );
 
         assert!(config.is_err());
@@ -781,6 +796,7 @@ mod tests {
             false,
             None,
             false,
+            true,
         );
 
         assert!(config.is_err());
@@ -813,6 +829,7 @@ mod tests {
             false,
             None,
             false,
+            true,
         );
 
         assert!(config.is_err());

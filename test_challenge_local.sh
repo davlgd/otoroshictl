@@ -55,6 +55,8 @@ export OTOROSHI_CHALLENGE_TOKEN_TTL=30
 # Set to any non-empty value to use V1 protocol (simple echo) instead of V2 JWT
 #export OTOROSHI_CHALLENGE_FORCE_V1=true
 
+#export OTOROSHI_CHALLENGE_KEEP_HEADERS=true
+
 # ---------------------------------------------------------------------------
 # Consumer Info JWT (Otoroshi-Claims header processing)
 # ---------------------------------------------------------------------------
