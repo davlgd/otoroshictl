@@ -91,6 +91,10 @@ The local port defaults to `1053` (not `53`) so that `otoroshictl` does not requ
 | `session` | `pappsToken=<token>` query parameter | `--session-token` |
 | `public` | No authentication | — |
 
+## When to omit `--remote-host` / `--remote-port`
+
+`--remote-host` and `--remote-port` are **optional**. You can omit them when the Otoroshi route target already contains the destination — for example when the target URL uses the `${remote_host}` or `${remote_port}` placeholders. In that case the values are resolved by Otoroshi itself and do not need to be passed on the command line.
+
 ## Command usage
 
 <Terminal
@@ -98,7 +102,7 @@ The local port defaults to `1053` (not `53`) so that `otoroshictl` does not requ
     result={`
 Tunnel UDP traffic through an otoroshi cluster
 
-Usage: otoroshictl udp-tunnel [OPTIONS] --host <HOST> --remote-host <REMOTE_HOST> --remote-port <REMOTE_PORT>
+Usage: otoroshictl udp-tunnel [OPTIONS] --host <HOST>
 
 Options:
       --host <HOST>
@@ -110,9 +114,9 @@ Options:
       --local-port <LOCAL_PORT>
           Local port to listen on [default: 1053]
       --remote-host <REMOTE_HOST>
-          Remote host that Otoroshi should forward traffic to
-      --remote-port <REMOTE_HOST>
-          Remote port that Otoroshi should forward traffic to
+          Remote host that Otoroshi should forward traffic to (optional if the Otoroshi target uses \${remote_host})
+      --remote-port <REMOTE_PORT>
+          Remote port that Otoroshi should forward traffic to (optional if the Otoroshi target uses \${remote_port})
       --access-type <ACCESS_TYPE>
           Authentication type: apikey, bearer, session, or public [default: apikey]
       --apikey-client-id <APIKEY_CLIENT_ID>

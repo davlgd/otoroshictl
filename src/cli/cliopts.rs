@@ -620,12 +620,12 @@ pub enum Commands {
         /// Local port to listen on
         #[clap(long, default_value = "1053")]
         local_port: u16,
-        /// Remote host that Otoroshi should forward traffic to
+        /// Remote host that Otoroshi should forward traffic to (optional if the Otoroshi target uses ${remote_host})
         #[clap(long)]
-        remote_host: String,
-        /// Remote port that Otoroshi should forward traffic to
+        remote_host: Option<String>,
+        /// Remote port that Otoroshi should forward traffic to (optional if the Otoroshi target uses ${remote_port})
         #[clap(long)]
-        remote_port: u16,
+        remote_port: Option<u16>,
         /// Authentication type: apikey, bearer, session, or public
         #[clap(long, default_value = "apikey")]
         access_type: String,
@@ -657,12 +657,12 @@ pub enum Commands {
         /// Local port to listen on
         #[clap(long, default_value = "2222")]
         local_port: u16,
-        /// Remote host that Otoroshi should forward traffic to
+        /// Remote host that Otoroshi should forward traffic to (optional if the Otoroshi target uses ${remote_host})
         #[clap(long)]
-        remote_host: String,
-        /// Remote port that Otoroshi should forward traffic to
+        remote_host: Option<String>,
+        /// Remote port that Otoroshi should forward traffic to (optional if the Otoroshi target uses ${remote_port})
         #[clap(long)]
-        remote_port: u16,
+        remote_port: Option<u16>,
         /// Authentication type: apikey, bearer, session, or public
         #[clap(long, default_value = "apikey")]
         access_type: String,

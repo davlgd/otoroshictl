@@ -11,8 +11,8 @@ pub struct TcpTunnelOpts {
     pub tls: bool,
     pub local_host: String,
     pub local_port: u16,
-    pub remote_host: String,
-    pub remote_port: u16,
+    pub remote_host: Option<String>,
+    pub remote_port: Option<u16>,
     pub access_type: String,
     pub apikey_client_id: Option<String>,
     pub apikey_client_secret: Option<String>,
@@ -25,9 +25,15 @@ pub struct TcpTunnel {}
 impl TcpTunnel {
     pub async fn start(opts: TcpTunnelOpts) -> () {
         let listen_addr = format!("{}:{}", opts.local_host, opts.local_port);
+        let remote_info = match (&opts.remote_host, opts.remote_port) {
+            (Some(rh), Some(rp)) => format!("{}:{}", rh, rp),
+            (Some(rh), None) => rh.clone(),
+            (None, Some(rp)) => format!(":{}", rp),
+            (None, None) => "(defined in otoroshi target)".to_string(),
+        };
         info!(
-            "TCP tunnel listening on {} → {}:{} via Otoroshi ({})",
-            listen_addr, opts.remote_host, opts.remote_port, opts.host
+            "TCP tunnel listening on {} → {} via Otoroshi ({})",
+            listen_addr, remote_info, opts.host
         );
 
         let listener = match TcpListener::bind(&listen_addr).await {
@@ -60,9 +66,15 @@ impl TcpTunnel {
 
         // Build WebSocket URL with routing query parameters
         let mut url_str = format!(
-            "{}://{}/.well-known/otoroshi/tunnel?remoteHost={}&remotePort={}&transport=tcp",
-            scheme, opts.host, opts.remote_host, opts.remote_port
+            "{}://{}/.well-known/otoroshi/tunnel?transport=tcp",
+            scheme, opts.host
         );
+        if let Some(ref rh) = opts.remote_host {
+            url_str.push_str(&format!("&remoteHost={}", rh));
+        }
+        if let Some(rp) = opts.remote_port {
+            url_str.push_str(&format!("&remotePort={}", rp));
+        }
 
         // Session token goes into the query string
         if opts.access_type == "session" {

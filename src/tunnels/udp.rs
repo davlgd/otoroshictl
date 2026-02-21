@@ -13,8 +13,8 @@ pub struct UdpTunnelOpts {
     pub tls: bool,
     pub local_host: String,
     pub local_port: u16,
-    pub remote_host: String,
-    pub remote_port: u16,
+    pub remote_host: Option<String>,
+    pub remote_port: Option<u16>,
     pub access_type: String,
     pub apikey_client_id: Option<String>,
     pub apikey_client_secret: Option<String>,
@@ -27,9 +27,15 @@ pub struct UdpTunnel {}
 impl UdpTunnel {
     pub async fn start(opts: UdpTunnelOpts) -> () {
         let listen_addr = format!("{}:{}", opts.local_host, opts.local_port);
+        let remote_info = match (&opts.remote_host, opts.remote_port) {
+            (Some(rh), Some(rp)) => format!("{}:{}", rh, rp),
+            (Some(rh), None) => rh.clone(),
+            (None, Some(rp)) => format!(":{}", rp),
+            (None, None) => "(defined in otoroshi target)".to_string(),
+        };
         info!(
-            "UDP tunnel listening on {} → {}:{} via Otoroshi ({})",
-            listen_addr, opts.remote_host, opts.remote_port, opts.host
+            "UDP tunnel listening on {} → {} via Otoroshi ({})",
+            listen_addr, remote_info, opts.host
         );
 
         // Bind the UDP socket once; reuse it across WebSocket reconnections
@@ -62,9 +68,15 @@ impl UdpTunnel {
 
         // Build WebSocket URL with routing query parameters
         let mut url_str = format!(
-            "{}://{}/.well-known/otoroshi/tunnel?remoteHost={}&remotePort={}&transport=udp",
-            scheme, opts.host, opts.remote_host, opts.remote_port
+            "{}://{}/.well-known/otoroshi/tunnel?transport=udp",
+            scheme, opts.host
         );
+        if let Some(ref rh) = opts.remote_host {
+            url_str.push_str(&format!("&remoteHost={}", rh));
+        }
+        if let Some(rp) = opts.remote_port {
+            url_str.push_str(&format!("&remotePort={}", rp));
+        }
 
         if opts.access_type == "session" {
             if let Some(token) = &opts.session_token {
