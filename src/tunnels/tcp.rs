@@ -90,23 +90,21 @@ impl TcpTunnel {
 
         match opts.access_type.as_str() {
             "apikey" => {
-                if let (Some(cid), Some(csec)) =
-                    (opts.apikey_client_id.as_ref(), opts.apikey_client_secret.as_ref())
-                {
-                    let credentials =
-                        general_purpose::STANDARD.encode(format!("{}:{}", cid, csec));
-                    request.headers_mut().insert(
-                        "Authorization",
-                        format!("Basic {}", credentials).parse()?,
-                    );
+                if let (Some(cid), Some(csec)) = (
+                    opts.apikey_client_id.as_ref(),
+                    opts.apikey_client_secret.as_ref(),
+                ) {
+                    let credentials = general_purpose::STANDARD.encode(format!("{}:{}", cid, csec));
+                    request
+                        .headers_mut()
+                        .insert("Authorization", format!("Basic {}", credentials).parse()?);
                 }
             }
             "bearer" | "jwt" => {
                 if let Some(token) = &opts.bearer_token {
-                    request.headers_mut().insert(
-                        "Authorization",
-                        format!("Bearer {}", token).parse()?,
-                    );
+                    request
+                        .headers_mut()
+                        .insert("Authorization", format!("Bearer {}", token).parse()?);
                 }
             }
             _ => {} // "public" or "session" (token already in URL)

@@ -90,23 +90,21 @@ impl UdpTunnel {
 
         match opts.access_type.as_str() {
             "apikey" => {
-                if let (Some(cid), Some(csec)) =
-                    (opts.apikey_client_id.as_ref(), opts.apikey_client_secret.as_ref())
-                {
-                    let credentials =
-                        general_purpose::STANDARD.encode(format!("{}:{}", cid, csec));
-                    request.headers_mut().insert(
-                        "Authorization",
-                        format!("Basic {}", credentials).parse()?,
-                    );
+                if let (Some(cid), Some(csec)) = (
+                    opts.apikey_client_id.as_ref(),
+                    opts.apikey_client_secret.as_ref(),
+                ) {
+                    let credentials = general_purpose::STANDARD.encode(format!("{}:{}", cid, csec));
+                    request
+                        .headers_mut()
+                        .insert("Authorization", format!("Basic {}", credentials).parse()?);
                 }
             }
             "bearer" | "jwt" => {
                 if let Some(token) = &opts.bearer_token {
-                    request.headers_mut().insert(
-                        "Authorization",
-                        format!("Bearer {}", token).parse()?,
-                    );
+                    request
+                        .headers_mut()
+                        .insert("Authorization", format!("Bearer {}", token).parse()?);
                 }
             }
             _ => {}
@@ -160,9 +158,7 @@ impl UdpTunnel {
             while let Some(msg) = ws_read.next().await {
                 match msg {
                     Ok(Message::Binary(data)) => {
-                        if let Ok(json) =
-                            serde_json::from_slice::<serde_json::Value>(&data)
-                        {
+                        if let Ok(json) = serde_json::from_slice::<serde_json::Value>(&data) {
                             let address = json.get("address").and_then(|v| v.as_str());
                             let port = json.get("port").and_then(|v| v.as_u64());
                             let encoded = json.get("data").and_then(|v| v.as_str());
@@ -173,8 +169,7 @@ impl UdpTunnel {
                                 if let Ok(payload) = general_purpose::STANDARD.decode(encoded) {
                                     let dest = format!("{}:{}", address, port);
                                     if let Ok(dest_addr) = dest.parse::<SocketAddr>() {
-                                        if let Err(e) =
-                                            udp_send.send_to(&payload, dest_addr).await
+                                        if let Err(e) = udp_send.send_to(&payload, dest_addr).await
                                         {
                                             debug!("UDP send error: {}", e);
                                         }
